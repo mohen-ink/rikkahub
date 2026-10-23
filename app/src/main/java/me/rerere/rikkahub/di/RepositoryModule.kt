@@ -10,6 +10,7 @@ import me.rerere.rikkahub.data.repository.FolderRepository
 import me.rerere.rikkahub.data.repository.GenMediaRepository
 import me.rerere.rikkahub.data.repository.MediaCreationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
+import me.rerere.rikkahub.data.repository.SshConnectionRepository
 import me.rerere.rikkahub.data.repository.TranslationHistoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.skills.SkillManager
@@ -103,5 +104,9 @@ val repositoryModule = module {
 
     single {
         SkillManager(get(), get())
+    }
+
+    single {
+        SshConnectionRepository(context = get())
     }
 }

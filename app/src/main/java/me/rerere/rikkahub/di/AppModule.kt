@@ -109,6 +109,7 @@ val appModule = module {
             mcpManager = get(),
             skillManager = get(),
             workspaceRepository = get(),
+            sshConnectionRepository = get(),
         )
     }
 
@@ -119,6 +120,9 @@ val appModule = module {
             usageRecorder = get(),
             chatToolFactory = get(),
             memoryRepository = get(),
+            settingsStore = get(),
+            // Lazy 注入: ChatService 反向依赖 ChatRequestFactory, 直接 get() 会构造环
+            chatService = inject(),
             templateTransformer = get(),
             workspaceRepository = get(),
         )

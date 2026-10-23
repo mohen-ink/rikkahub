@@ -98,6 +98,8 @@ import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailPage
 import me.rerere.rikkahub.ui.pages.memory.MemoryFilePage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsPage
+import me.rerere.rikkahub.ui.pages.extensions.ssh.SshEditPage
+import me.rerere.rikkahub.ui.pages.extensions.ssh.SshListPage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspacePage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceDetailPage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceFileEditorPage
@@ -555,6 +557,14 @@ class RouteActivity : ComponentActivity() {
                                 SkillsPage()
                             }
 
+                            entry<Screen.SshConnections> {
+                                SshListPage()
+                            }
+
+                            entry<Screen.SshEdit> { key ->
+                                SshEditPage(key.id)
+                            }
+
                             entry<Screen.Workspaces> {
                                 WorkspacePage()
                             }
@@ -791,6 +801,12 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Skills : Screen
+
+    @Serializable
+    data object SshConnections : Screen
+
+    @Serializable
+    data class SshEdit(val id: String? = null) : Screen
 
     @Serializable
     data object Workspaces : Screen

@@ -19,6 +19,7 @@ import me.rerere.ai.ui.limitContext
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.prompts.buildMemoryPrompt
 import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
+import me.rerere.rikkahub.data.ai.tools.liveSshAuthorizedIds
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
@@ -36,6 +37,7 @@ import me.rerere.rikkahub.data.ai.transformers.transformThinkTags
 import me.rerere.rikkahub.data.ai.transformers.transforms
 import me.rerere.rikkahub.data.ai.transformers.visualTransforms
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
@@ -45,6 +47,7 @@ import me.rerere.rikkahub.data.model.getChatModelOf
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.repository.memoryId
+import me.rerere.rikkahub.service.ChatService
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -75,6 +78,10 @@ class ChatRequestFactory(
     private val usageRecorder: UsageRecorder,
     private val chatToolFactory: ChatToolFactory,
     private val memoryRepository: MemoryRepository,
+    private val settingsStore: SettingsStore,
+    // Lazy: ChatService 依赖本类构造, 直接注入会在 Koin 里成环;
+    // 这里只在 ssh_exec 执行时按会话读一次内存态会话授权, 惰性即可
+    private val chatService: Lazy<ChatService>,
     templateTransformer: TemplateTransformer,
     workspaceRepository: WorkspaceRepository,
 ) {
@@ -115,6 +122,15 @@ class ChatRequestFactory(
                 assistant = assistant,
                 model = model,
                 workspaceCwd = conversation.workspaceCwd,
+                // 会话态授权每次执行时重新解析: 审批等待期间撤销的连接在下一次执行前拦下。
+                // Lazy<ChatService> 避开 ChatService -> ChatRequestFactory 构造环; 失败时关死不放行
+                sshAuthorizedIds = {
+                    liveSshAuthorizedIds(
+                        conversationId = conversation.id,
+                        readConversation = { chatService.value.getConversation(it) },
+                        readSettings = { settingsStore.awaitLoaded() },
+                    )
+                },
             ),
         )
     }
