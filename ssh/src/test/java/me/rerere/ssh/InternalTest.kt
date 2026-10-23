@@ -111,6 +111,15 @@ class InternalTest {
     }
 
     @Test
+    fun `hostKeyType reads the algorithm name from the key blob`() {
+        val name = "ssh-ed25519".toByteArray(Charsets.US_ASCII)
+        val blob = byteArrayOf(0, 0, 0, name.size.toByte()) + name + ByteArray(36)
+        assertEquals("ssh-ed25519", hostKeyType(blob))
+        assertEquals("unknown", hostKeyType(byteArrayOf(0, 0, 0)))
+        assertEquals("unknown", hostKeyType(byteArrayOf(0x7F, 0, 0, 1, 1)))
+    }
+
+    @Test
     fun `buildRemoteCommand groups command under cd`() {
         val client = JschSshClient()
         assertEquals("plain", client.buildRemoteCommand("plain", null))

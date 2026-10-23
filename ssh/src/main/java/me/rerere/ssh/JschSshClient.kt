@@ -47,7 +47,7 @@ class JschSshClient(
 ) {
     private val slots = Semaphore(maxConcurrent)
 
-    suspend fun probeHostKeyFingerprint(host: String, port: Int): String =
+    suspend fun probeHostKey(host: String, port: Int): SshHostKeyInfo =
         slots.withPermit {
             runInterruptible(dispatcher) {
                 val probe = CapturingHostKeyRepository()
@@ -64,7 +64,7 @@ class JschSshClient(
                 }
                 val key = probe.capturedKey
                     ?: throw SshHostKeyProbeException("could not obtain host key from $host:$port")
-                hostKeyFingerprint(key)
+                SshHostKeyInfo(type = hostKeyType(key), fingerprint = hostKeyFingerprint(key))
             }
         }
 
@@ -99,12 +99,8 @@ class JschSshClient(
             require(cwd.isNotBlank() && !cwd.contains('\u0000')) { "invalid cwd" }
         }
         return slots.withPermit {
-            val session = try {
-                runInterruptible(dispatcher) {
-                    authenticatedSession(host, port, username, auth, expectedFingerprint)
-                }
-            } catch (e: CancellationException) {
-                throw e
+            val session = runInterruptible(dispatcher) {
+                authenticatedSession(host, port, username, auth, expectedFingerprint)
             }
             try {
                 runExec(session, command, cwd, timeoutSeconds)
@@ -364,7 +360,7 @@ class JschSshClient(
         const val DEFAULT_CONNECT_TIMEOUT_MS = 15_000
         const val DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
         const val MAX_COMMAND_TIMEOUT_SECONDS = 600
-        const val MAX_STREAM_CHARS = 8 * 1024
+        const val MAX_STREAM_CHARS = 20 * 1024
         private const val READ_CHUNK = 8 * 1024
         private const val POLL_MS = 50L
         private const val PROBE_USERNAME = "ssh-probe"

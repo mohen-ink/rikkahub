@@ -82,7 +82,7 @@ internal fun SshPickerPage(
             .padding(horizontal = 16.dp),
     ) {
         SheetHeader(
-            title = "SSH 连接",
+            title = "SSH 服务器",
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(HugeIcons.ArrowLeft01, contentDescription = stringResource(R.string.back))
@@ -135,7 +135,7 @@ private fun SshPicker(
                 supportingContent = {
                     Text(
                         text = "${connection.username}@${connection.host}:${connection.port}" +
-                            if (connection.trustedFingerprint == null) " · 未信任指纹，需先在管理页确认后才能执行" else "",
+                            if (connection.trustedFingerprint == null) " · 还没确认指纹，暂时不能用" else "",
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         color = if (connection.trustedFingerprint == null) {
@@ -160,7 +160,7 @@ private fun SshPicker(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 FilledTonalButton(onClick = onManage) {
-                    Text("管理 SSH 连接")
+                    Text("管理 SSH 服务器")
                 }
             }
         }

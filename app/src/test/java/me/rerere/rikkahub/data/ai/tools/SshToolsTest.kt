@@ -10,6 +10,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.repository.SshFingerprintNotTrustedException
 import me.rerere.rikkahub.data.repository.SshRevisionMismatchException
@@ -349,6 +350,7 @@ class SshToolsTest {
         )
         val capped = tool.call(execArgs(connectionA.id, "rev-a1")).asJson()
         assertEquals(20 * 1024, capped["stdout"]!!.jsonPrimitive.content.length)
+        assertTrue(capped["stdout"]!!.jsonPrimitive.content.all { it == 'x' })
         assertEquals(20 * 1024, capped["stderr"]!!.jsonPrimitive.content.length)
         assertTrue(capped["truncated"]!!.jsonPrimitive.content.toBoolean())
     }
@@ -473,5 +475,26 @@ class SshToolsTest {
             )
         }.exceptionOrNull()
         assertTrue(error is CancellationException)
+    }
+
+    @Test
+    fun `output cap keeps the tail where errors usually are`() = runTest {
+        val access = FakeSshAccess(listOf(connectionA)).apply {
+            result = SshCommandResult(exitCode = 1, stdout = "head-" + "x".repeat(21 * 1024) + "-tail", stderr = "")
+        }
+        val tool = execTool(access) { setOf(connectionA.id) }
+        val stdout = tool.call(execArgs(connectionA.id, "rev-a1")).asJson()["stdout"]!!.jsonPrimitive.content
+        assertTrue(stdout.endsWith("-tail"))
+        assertFalse(stdout.startsWith("head-"))
+    }
+
+    @Test
+    fun `system prompt lists authorized connections so the model can exec directly`() = runTest {
+        val access = FakeSshAccess(listOf(connectionA, connectionB))
+        val tool = execTool(access) { setOf(connectionA.id) }
+        val prompt = tool.systemPrompt(Model(), emptyList())
+        assertTrue(prompt.contains("\"prod-web\" id=${connectionA.id} revision=rev-a1"))
+        assertFalse(prompt.contains(connectionB.id.toString()))
+        assertFalse(prompt.contains(connectionA.host))
     }
 }

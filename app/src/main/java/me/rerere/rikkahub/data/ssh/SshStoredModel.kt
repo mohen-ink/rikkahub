@@ -2,7 +2,6 @@ package me.rerere.rikkahub.data.ssh
 
 import kotlinx.serialization.Serializable
 import me.rerere.ssh.SshAuthType
-import kotlin.uuid.Uuid
 
 /**
  * On-disk model for a stored SSH connection, serialized as JSON and then
@@ -22,6 +21,7 @@ internal data class SshStoredConnection(
     val passphrase: String? = null,
     val revision: String,
     val trustedFingerprint: String? = null,
+    val trustedKeyType: String? = null,
     val autoApproveCommands: Boolean = false,
 ) {
     override fun toString(): String =
@@ -37,7 +37,3 @@ internal data class SshConnectionsFile(
     val version: Int = 1,
     val connections: List<SshStoredConnection> = emptyList(),
 )
-
-internal fun Uuid.toStoredString(): String = toString()
-
-internal fun parseStoredUuid(raw: String): Uuid = Uuid.parse(raw)

@@ -82,7 +82,7 @@ suspend fun createSshTools(
     if (connections != null && connections.isEmpty()) return emptyList()
     return listOf(
         createListConnectionsTool(authorizedIds, sshAccess),
-        createSshExecTool(authorizedIds, sshAccess),
+        createSshExecTool(authorizedIds, sshAccess, connections.orEmpty()),
     )
 }
 
@@ -163,6 +163,7 @@ private fun createListConnectionsTool(
 private fun createSshExecTool(
     authorizedIds: suspend () -> Set<Uuid>,
     sshAccess: SshConnectionAccess,
+    initialConnections: List<SshConnectionInfo>,
 ) = Tool(
     needsApproval = { arguments ->
         val params = runCatching<JsonObject> { arguments.jsonObject }.getOrNull()
@@ -177,7 +178,7 @@ private fun createSshExecTool(
     },
     name = SSH_EXEC_TOOL,
     description = "Execute a shell command on an authorized SSH connection. " +
-        "connectionId and connectionRevision come from ssh_list_connections; " +
+        "connectionId and connectionRevision come from the system prompt or ssh_list_connections; " +
         "host, username, password or key cannot be overridden here.",
     parameters = {
         InputSchema.Obj(
@@ -210,8 +211,17 @@ private fun createSshExecTool(
         )
     },
     systemPrompt = { _, _ ->
+        val listing = if (initialConnections.isEmpty()) {
+            "Call ssh_list_connections to get authorized connection ids, names and current revisions. "
+        } else {
+            "Authorized SSH connections (pass id as connectionId and revision as connectionRevision): " +
+                initialConnections.joinToString(separator = "; ", postfix = ". ") {
+                    "\"${it.name}\" id=${it.id} revision=${it.revision}"
+                } +
+                "If ssh_exec reports the connection changed, call ssh_list_connections for fresh revisions. "
+        }
         "SSH tools (ssh_list_connections, ssh_exec): " +
-            "call ssh_list_connections first to get authorized connection ids, names and current revisions. " +
+            listing +
             "Each ssh_exec runs an independent shell: cwd and environment do not persist between calls. " +
             "Commands are non-interactive — no sudo -S, password prompts or interactive input. " +
             "Saved SSH credentials are used locally for authentication and are never included in model requests; " +
@@ -376,7 +386,7 @@ private fun SshCommandResult.toToolJson(connectionName: String): String {
         if (truncated || cappedStdout.truncated || cappedStderr.truncated) {
             put(
                 "truncationNote",
-                "Output was capped; rerun with a narrower command (e.g. head/tail/grep) for the rest."
+                "Output was capped to its last part; rerun with a narrower command (e.g. head/grep) for the rest."
             )
         }
     }.toString()
@@ -388,5 +398,5 @@ private fun String.capOutput(): CappedText =
     if (length <= SSH_OUTPUT_MAX_CHARS) {
         CappedText(this, false)
     } else {
-        CappedText(take(SSH_OUTPUT_MAX_CHARS), true)
+        CappedText(takeLast(SSH_OUTPUT_MAX_CHARS), true)
     }

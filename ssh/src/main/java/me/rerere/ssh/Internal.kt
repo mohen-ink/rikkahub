@@ -17,6 +17,17 @@ internal fun hostKeyFingerprint(hostKey: ByteArray): String {
     return "SHA256:$b64"
 }
 
+// SSH 公钥 blob 以 uint32 长度 + 算法名开头 (RFC 4253 §6.6)
+internal fun hostKeyType(hostKey: ByteArray): String {
+    if (hostKey.size < 4) return "unknown"
+    val length = ((hostKey[0].toInt() and 0xFF) shl 24) or
+        ((hostKey[1].toInt() and 0xFF) shl 16) or
+        ((hostKey[2].toInt() and 0xFF) shl 8) or
+        (hostKey[3].toInt() and 0xFF)
+    if (length <= 0 || length > 64 || 4 + length > hostKey.size) return "unknown"
+    return String(hostKey, 4, length, Charsets.US_ASCII)
+}
+
 internal fun normalizeSha256Fingerprint(fingerprint: String): String {
     val value = fingerprint.trim()
     require(value.startsWith("SHA256:")) { "expected a SHA256: fingerprint" }

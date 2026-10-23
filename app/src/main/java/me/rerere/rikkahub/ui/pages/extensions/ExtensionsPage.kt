@@ -85,8 +85,8 @@ fun ExtensionsPage() {
                     item(
                         onClick = { navController.navigate(Screen.SshConnections) },
                         leadingContent = { CardGroupIcon(HugeIcons.ComputerTerminal01, containerColor = containerColor, contentColor = contentColor) },
-                        headlineContent = { Text("SSH 连接") },
-                        supportingContent = { Text("保存多个连接供 AI 远程执行命令，凭据仅存本机") },
+                        headlineContent = { Text("SSH 服务器") },
+                        supportingContent = { Text("统一管理服务器，聊天时让 AI 在上面执行命令") },
                     )
                 }
             }

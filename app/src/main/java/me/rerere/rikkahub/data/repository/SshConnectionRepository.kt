@@ -18,6 +18,7 @@ import me.rerere.ssh.JschSshClient
 import me.rerere.ssh.SshAuth
 import me.rerere.ssh.SshAuthType
 import me.rerere.ssh.SshCommandResult
+import me.rerere.ssh.SshHostKeyInfo
 import java.security.SecureRandom
 import java.util.Base64
 import kotlin.uuid.Uuid
@@ -64,19 +65,6 @@ class SshConnectionRepository(
         items
     }
 
-    suspend fun setAutoApprove(id: Uuid, enabled: Boolean): SshConnectionInfo {
-        val updated = store.mutate { file ->
-            val current = file.connections.firstOrNull { it.id == id.toString() }
-                ?: throw SshConnectionNotFoundException(id.toString())
-            val next = current.copy(autoApproveCommands = enabled, revision = newRevision())
-            file.copy(
-                connections = file.connections.map { if (it.id == next.id) next else it }
-            ) to next
-        }
-        refreshFlow()
-        return updated.toInfo()
-    }
-
     fun listFlow(): StateFlow<List<SshConnectionInfo>> = connections
 
     suspend fun getById(id: Uuid): SshConnectionInfo? =
@@ -90,9 +78,10 @@ class SshConnectionRepository(
      *   auth type always requires the matching new secret.
      * - [SshConnectionDraft.clearPassphrase] explicitly drops a stored key
      *   passphrase; a null passphrase otherwise retains it.
-     * - Changing `host` or `port` invalidates the trusted fingerprint; every
-     *   edit rotates the opaque revision so pending approvals cannot be
-     *   replayed against mutated state.
+     * - Changing `host` or `port` invalidates the trusted fingerprint. The
+     *   opaque revision rotates whenever the execution target changes (host,
+     *   port, username, auth type or any secret) so pending approvals cannot be
+     *   replayed against it; renaming or toggling auto-approval keeps it.
      */
     suspend fun save(id: Uuid?, draft: SshConnectionDraft): Uuid {
         validateDraftBasics(draft)
@@ -121,12 +110,12 @@ class SshConnectionRepository(
     }
 
     /**
-     * Connects to the server and returns its host key `SHA256:` fingerprint
-     * without authenticating or sending any credentials.
+     * Connects to the server and returns its host key type and `SHA256:`
+     * fingerprint without authenticating or sending any credentials.
      */
-    suspend fun probeFingerprint(id: Uuid): String {
+    suspend fun probeHostKey(id: Uuid): SshHostKeyInfo {
         val connection = requireConnection(id)
-        return client.probeHostKeyFingerprint(connection.host, connection.port)
+        return client.probeHostKey(connection.host, connection.port)
     }
 
     /**
@@ -135,8 +124,8 @@ class SshConnectionRepository(
      * the fingerprint was presented) so a probe→trust pair can't be replayed
      * across edits.
      */
-    suspend fun trustFingerprint(id: Uuid, expectedRevision: String, fingerprint: String) {
-        val normalized = normalizeFingerprint(fingerprint)
+    suspend fun trustFingerprint(id: Uuid, expectedRevision: String, hostKey: SshHostKeyInfo) {
+        val normalized = normalizeFingerprint(hostKey.fingerprint)
         store.mutate { file ->
             val current = file.connections.firstOrNull { it.id == id.toString() }
                 ?: throw SshConnectionNotFoundException(id.toString())
@@ -145,6 +134,7 @@ class SshConnectionRepository(
             }
             val updated = current.copy(
                 trustedFingerprint = normalized,
+                trustedKeyType = hostKey.type,
                 revision = newRevision(),
             )
             file.copy(
@@ -233,6 +223,12 @@ class SshConnectionRepository(
 
         val identityChanged = existing != null &&
             (existing.host != draft.host.trim() || existing.port != draft.port)
+        val targetChanged = existing == null || identityChanged ||
+            existing.username != draft.username.trim() ||
+            existing.authType != draft.authType ||
+            existing.password != password ||
+            existing.privateKey != privateKey ||
+            existing.passphrase != passphrase
 
         return SshStoredConnection(
             id = existing?.id ?: Uuid.random().toString(),
@@ -244,8 +240,9 @@ class SshConnectionRepository(
             password = password,
             privateKey = privateKey,
             passphrase = passphrase,
-            revision = newRevision(),
+            revision = if (targetChanged) newRevision() else existing?.revision ?: newRevision(),
             trustedFingerprint = if (identityChanged) null else existing?.trustedFingerprint,
+            trustedKeyType = if (identityChanged) null else existing?.trustedKeyType,
             autoApproveCommands = draft.autoApproveCommands,
         )
     }
@@ -294,6 +291,7 @@ class SshConnectionRepository(
         authType = authType,
         revision = revision,
         trustedFingerprint = trustedFingerprint,
+        trustedKeyType = trustedKeyType,
         hasPassphrase = !passphrase.isNullOrEmpty(),
         autoApproveCommands = autoApproveCommands,
     )

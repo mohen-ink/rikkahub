@@ -32,6 +32,7 @@ import me.rerere.hugeicons.stroke.CloudServer
 import me.rerere.hugeicons.stroke.ComputerTerminal01
 import me.rerere.rikkahub.data.ai.tools.SSH_EXEC_TOOL
 import me.rerere.rikkahub.data.ai.tools.SSH_LIST_CONNECTIONS_TOOL
+import me.rerere.rikkahub.data.ai.tools.isExtremelyDangerousSshCommand
 import me.rerere.rikkahub.data.repository.SshConnectionRepository
 import me.rerere.rikkahub.data.ssh.SshConnectionInfo
 import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
@@ -51,7 +52,7 @@ object SshListConnectionsToolUI : ToolUIRenderer {
     override fun icon(context: ToolUIContext): ImageVector = HugeIcons.CloudServer
 
     @Composable
-    override fun title(context: ToolUIContext): String = "SSH 连接"
+    override fun title(context: ToolUIContext): String = "SSH 服务器"
 
     override fun hasSummary(context: ToolUIContext): Boolean =
         context.content?.jsonObjectOrNull?.get("connections") != null
@@ -125,15 +126,22 @@ object SshExecToolUI : ToolUIRenderer {
         } else {
             val connection = rememberSshConnection(context.arguments.getStringContent("connectionId"))
             val revision = context.arguments.getStringContent("connectionRevision")
+            val command = context.arguments.getStringContent("command").orEmpty()
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 SshTargetLine(connection, revision, MaterialTheme.typography.labelSmall)
+                if (context.tool.isPending) {
+                    SshApprovalReason(
+                        dangerous = remember(command) { isExtremelyDangerousSshCommand(command) },
+                        autoApprove = connection?.autoApproveCommands == true,
+                    )
+                }
                 Text(
                     text = "目录：${context.arguments.getStringContent("cwd") ?: "服务器默认目录"} · " +
                         "超时：${context.arguments.getStringContent("timeoutSeconds") ?: "30"} 秒",
                     style = MaterialTheme.typography.labelSmall,
                 )
                 Text(
-                    text = context.arguments.getStringContent("command").orEmpty(),
+                    text = command,
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 )
             }
@@ -217,6 +225,27 @@ object SshExecToolUI : ToolUIRenderer {
 }
 
 @Composable
+private fun SshApprovalReason(dangerous: Boolean, autoApprove: Boolean) {
+    when {
+        dangerous -> Text(
+            text = if (autoApprove) {
+                "这条命令可能删除数据、格式化磁盘或关机重启，即使开了免确认也需要你确认"
+            } else {
+                "注意：这条命令可能删除数据、格式化磁盘或关机重启"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+
+        !autoApprove -> Text(
+            text = "这台服务器设置为每条命令都要确认",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun SshTargetLine(
     connection: SshConnectionInfo?,
     expectedRevision: String?,
@@ -224,14 +253,14 @@ private fun SshTargetLine(
 ) {
     when {
         connection == null -> Text(
-            text = "连接不存在(可能已删除)",
+            text = "服务器不存在（可能已删除）",
             style = style,
             color = MaterialTheme.colorScheme.error,
         )
 
         expectedRevision != null && connection.revision != expectedRevision -> Text(
             text = "${connection.name} — ${connection.username}@${connection.host}:${connection.port} " +
-                "(该连接在发起调用后已被修改)",
+                "（服务器信息已修改，这次调用会被拒绝）",
             style = style,
             color = MaterialTheme.colorScheme.error,
         )
@@ -259,8 +288,8 @@ private fun SshExitStatus(content: JsonElement, style: androidx.compose.ui.text.
     val ok = status == "completed" && exitCode?.content == "0"
     Text(
         text = when (status) {
-            "timeout" -> "超时(远程进程可能仍在运行)"
-            "interrupted" -> "连接中断(退出状态未知)"
+            "timeout" -> "超时（远程命令可能还在运行）"
+            "interrupted" -> "连接中断（不确定命令是否执行完）"
             else -> "退出码 ${exitCode?.content ?: "?"}"
         },
         style = style,

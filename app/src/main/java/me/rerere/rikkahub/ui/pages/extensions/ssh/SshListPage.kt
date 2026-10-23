@@ -19,7 +19,6 @@ import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -41,9 +40,7 @@ import me.rerere.hugeicons.stroke.Alert01
 import me.rerere.hugeicons.stroke.ComputerTerminal01
 import me.rerere.hugeicons.stroke.Connect
 import me.rerere.hugeicons.stroke.Delete01
-import me.rerere.hugeicons.stroke.Key01
 import me.rerere.hugeicons.stroke.PencilEdit01
-import me.rerere.hugeicons.stroke.ShieldCheck
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ssh.SshConnectionInfo
@@ -85,7 +82,7 @@ fun SshListPage(vm: SshVM = koinViewModel()) {
     Scaffold(
         topBar = {
             LargeFlexibleTopAppBar(
-                title = { Text("SSH 连接") },
+                title = { Text("SSH 服务器") },
                 navigationIcon = { BackButton() },
                 scrollBehavior = scrollBehavior,
                 colors = CustomColors.topBarColors,
@@ -109,27 +106,12 @@ fun SshListPage(vm: SshVM = koinViewModel()) {
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                CardGroup {
-                    item(
-                        headlineContent = { Text("凭据仅加密保存在本机") },
-                        supportingContent = { Text("密码、私钥与口令不会发送给 AI，也不包含在应用或云备份中；卸载或换机后需重新添加。") },
-                        leadingContent = { CardGroupIcon(HugeIcons.ShieldCheck) },
-                    )
-                    item(
-                        headlineContent = { Text("最小权限") },
-                        supportingContent = { Text("远程命令输出会发送给模型。请使用仅具备所需权限的专用账号，避免授权可读取敏感数据的账号。") },
-                        leadingContent = { CardGroupIcon(HugeIcons.Key01) },
-                    )
-                }
-            }
-
             if (listError != null) {
                 item {
                     CardGroup {
                         item(
                             onClick = { vm.refreshConnections() },
-                            headlineContent = { Text("加载连接列表失败") },
+                            headlineContent = { Text("加载服务器列表失败") },
                             supportingContent = { Text("${listError} · 点按重试") },
                             leadingContent = {
                                 CardGroupIcon(
@@ -146,8 +128,8 @@ fun SshListPage(vm: SshVM = koinViewModel()) {
             if (connections.isEmpty()) {
                 item {
                     ExtensionEmptyState(
-                        message = "还没有 SSH 连接",
-                        description = "添加连接后，可在聊天中授权 AI 按名称选择服务器执行命令",
+                        message = "还没有 SSH 服务器",
+                        description = "添加后，在聊天输入框的「+」里勾选，AI 就能在这台服务器上执行命令",
                         icon = HugeIcons.ComputerTerminal01,
                     )
                 }
@@ -157,18 +139,29 @@ fun SshListPage(vm: SshVM = koinViewModel()) {
                 SshConnectionItem(
                     connection = connection,
                     testing = connection.id in testingIds,
-                    onAutoApproveChange = { vm.setAutoApprove(connection.id, it) },
                     onOpen = { navController.navigate(Screen.SshEdit(connection.id.toString())) },
                     onTest = { vm.testConnection(connection.id) },
                     onDelete = { deleteTarget = connection },
                 )
+            }
+
+            if (connections.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "密码和私钥只加密保存在本机，不会发给 AI，也不进备份；换手机或重装后需要重新添加。" +
+                            "AI 执行命令的输出会发给模型，建议使用权限受限的账号。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                }
             }
         }
     }
 
     RikkaConfirmDialog(
         show = deleteTarget != null,
-        title = "删除连接",
+        title = "删除服务器",
         confirmText = stringResource(R.string.common_delete),
         dismissText = stringResource(R.string.common_cancel),
         onConfirm = {
@@ -177,7 +170,7 @@ fun SshListPage(vm: SshVM = koinViewModel()) {
         },
         onDismiss = { deleteTarget = null },
     ) {
-        Text("确定删除「${deleteTarget?.name ?: ""}」吗？本地保存的凭据会一并移除，已授权此连接的会话将无法继续使用。")
+        Text("确定删除「${deleteTarget?.name ?: ""}」吗？保存的密码或私钥会一并删除，聊天中的 AI 将不能再使用它。")
     }
 }
 
@@ -185,7 +178,6 @@ fun SshListPage(vm: SshVM = koinViewModel()) {
 private fun SshConnectionItem(
     connection: SshConnectionInfo,
     testing: Boolean,
-    onAutoApproveChange: (Boolean) -> Unit,
     onOpen: () -> Unit,
     onTest: () -> Unit,
     onDelete: () -> Unit,
@@ -223,7 +215,7 @@ private fun SshConnectionItem(
                     Tag(
                         type = if (connection.trustedFingerprint != null) TagType.SUCCESS else TagType.WARNING,
                     ) {
-                        Text(if (connection.trustedFingerprint != null) "已信任" else "未信任")
+                        Text(if (connection.trustedFingerprint != null) "已就绪" else "待确认指纹")
                     }
                 }
                 Text(
@@ -239,22 +231,16 @@ private fun SshConnectionItem(
                 ) {
                     Text(
                         text = when (connection.authType) {
-                            SshAuthType.PASSWORD -> "密码认证"
-                            SshAuthType.PRIVATE_KEY -> "私钥认证"
+                            SshAuthType.PASSWORD -> "密码登录"
+                            SshAuthType.PRIVATE_KEY -> "私钥登录"
                         },
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.tertiary,
                     )
-                    Text(
-                        text = "自动审批",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Switch(
-                        checked = connection.autoApproveCommands,
-                        onCheckedChange = onAutoApproveChange,
-                    )
+                    if (connection.autoApproveCommands) {
+                        Tag(type = TagType.WARNING) { Text("免确认") }
+                    }
                 }
             }
             if (testing) {
@@ -268,10 +254,10 @@ private fun SshConnectionItem(
                         onClick = onOpen,
                     ),
                     ItemAction(
-                        text = "测试连接",
+                        text = if (connection.trustedFingerprint != null) "测试连接" else "去确认指纹",
                         icon = HugeIcons.Connect,
-                        enabled = !testing && connection.trustedFingerprint != null,
-                        onClick = onTest,
+                        enabled = !testing,
+                        onClick = if (connection.trustedFingerprint != null) onTest else onOpen,
                     ),
                     ItemAction(
                         text = "删除",
