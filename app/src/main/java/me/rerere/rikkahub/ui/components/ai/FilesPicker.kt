@@ -75,6 +75,7 @@ import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.lastContextTokens
+import me.rerere.rikkahub.data.repository.SshConnectionRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -88,6 +89,7 @@ private enum class FilesPickerPage {
     MAIN,
     MCP,
     EXTENSIONS,
+    SSH,
 }
 
 @Composable
@@ -117,6 +119,8 @@ internal fun FilesPicker(
     val navController = LocalNavController.current
     val workspaceRepository: WorkspaceRepository = koinInject()
     val workspaces by workspaceRepository.listFlow().collectAsState(initial = emptyList())
+    val sshRepository: SshConnectionRepository = koinInject()
+    val sshConnections by sshRepository.listFlow().collectAsState(initial = emptyList())
 
     val boundWorkspace = remember(workspaces, assistant.workspaceId) {
         workspaces.find { it.id == assistant.workspaceId?.toString() }
@@ -149,6 +153,16 @@ internal fun FilesPicker(
                 mcpManager = mcpManager,
                 onUpdateAssistant = onUpdateAssistant,
                 onBack = { page = FilesPickerPage.MAIN },
+            )
+
+            FilesPickerPage.SSH -> SshPickerPage(
+                assistant = assistant,
+                onUpdateAssistant = onUpdateAssistant,
+                onBack = { page = FilesPickerPage.MAIN },
+                onManage = {
+                    onDismiss()
+                    navController.navigate(Screen.SshConnections)
+                },
             )
 
             FilesPickerPage.EXTENSIONS -> ExtensionPickerPage(
@@ -185,9 +199,10 @@ internal fun FilesPicker(
                 // 分段列表：各项按显示条件依次占位，首尾项才有大圆角
                 val showWorkspace = workspaces.isNotEmpty()
                 val showMcp = settings.mcpServers.isNotEmpty()
+                val showSsh = true
                 // 限制了上下文消息数就是滚动上下文，旧消息会自动移出，不需要压缩
                 val showCompress = assistant.contextMessageLimit <= 0
-                val itemCount = 1 + listOf(showWorkspace, showWorkspace && showCwd, showMcp, showCompress).count { it }
+                val itemCount = 1 + listOf(showWorkspace, showWorkspace && showCwd, showMcp, showSsh, showCompress).count { it }
                 var itemIndex = 0
                 Column(
                     verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
@@ -244,6 +259,16 @@ internal fun FilesPicker(
                             mcpManager = mcpManager,
                             shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
                             onClick = { page = FilesPickerPage.MCP },
+                        )
+                    }
+
+                    // SSH 连接授权（AI 按名称选服务器）
+                    if (showSsh) {
+                        SshPickerListItem(
+                            assistant = assistant,
+                            connections = sshConnections,
+                            shapes = ListItemDefaults.segmentedShapes(index = itemIndex++, count = itemCount),
+                            onClick = { page = FilesPickerPage.SSH },
                         )
                     }
 

@@ -51,6 +51,11 @@ App 有一个 `distribution` 维度的 product flavor：`github`（默认）和 
   binary compatible with the `terminal-view` aar). `TerminalSession` runs over a `TerminalTransport`: local PRoot
   terminals use `LocalPtyTransport`, SSH workspaces use the app's `SshTerminalTransport`. Origin and local changes are
   listed in terminal/README.md.
+- **ssh**: Standalone SSH host-key verification and non-interactive remote command execution, independent of
+  workspaces. Named SSH servers are managed in one place (Extensions → SSH); a conversation authorizes any subset of
+  them, alongside its workspace. Connections and credentials are encrypted locally under `noBackupFilesDir` using
+  Android Keystore and are never included in backups. AI tools receive only authorized connection names/IDs;
+  passwords, private keys and passphrases are resolved locally. Remote command output is sent to the model.
 
 ## Concepts
 
@@ -63,8 +68,8 @@ App 有一个 `distribution` 维度的 product flavor：`github`（默认）和 
   list of MessageNodes in a tree structure to support message branching, along with metadata like title, creation time,
   update time, pin status, chat suggestions, optional conversation-level system prompt, and prompt injection bindings.
   Once a conversation is persisted it also holds a `ConversationConfig` snapshot (chat model, reasoning level, search,
-  MCP servers, workspace, skills) taken from the assistant; from then on chat-page changes to those settings stay on
-  the conversation, and code should read them through `Settings.getAssistantOf(conversation)` /
+  MCP servers, workspace, authorized SSH connection IDs, skills) taken from the assistant; from then on chat-page
+  changes to those settings stay on the conversation, and code should read them through `Settings.getAssistantOf(conversation)` /
   `Settings.getChatModelOf(conversation)` instead of the assistant directly. Once loaded, the in-memory
   `ConversationSession` is the single source of truth: change a conversation through `ChatService` (which applies
   `session.update { latest -> ... }` and then `flush()`), never by saving a whole `Conversation` snapshot or one read

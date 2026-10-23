@@ -6,6 +6,7 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.utils.JsonInstant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -21,6 +22,7 @@ class ConversationConfigTest {
     private val workspace = Uuid.random()
     private val injection = Uuid.random()
     private val lorebook = Uuid.random()
+    private val sshConnection = Uuid.random()
 
     private val assistant = Assistant(
         chatModelId = modelA.id,
@@ -31,6 +33,7 @@ class ConversationConfigTest {
         enabledSkills = setOf("skill"),
         modeInjectionIds = setOf(injection),
         lorebookIds = setOf(lorebook),
+        sshConnectionIds = setOf(sshConnection),
     )
 
     private fun settings(assistant: Assistant = this.assistant) = Settings(
@@ -69,6 +72,7 @@ class ConversationConfigTest {
                 mcpServers = setOf(mcpServer),
                 workspaceId = workspace,
                 enabledSkills = setOf("skill"),
+                sshConnectionIds = setOf(sshConnection),
             ),
             bound.config,
         )
@@ -99,6 +103,7 @@ class ConversationConfigTest {
             enabledSkills = emptySet(),
             modeInjectionIds = emptySet(),
             lorebookIds = emptySet(),
+            sshConnectionIds = emptySet(),
             systemPrompt = "changed",
         )
 
@@ -202,7 +207,10 @@ class ConversationConfigTest {
         val bound = conversation().bindConfig(settings()).copy(workspaceCwd = "/workspace/project")
         val assistantView = settings().getAssistantOf(bound)
 
-        val sameWorkspace = bound.withAssistantUpdate(assistantView.copy(reasoningLevel = ReasoningLevel.LOW), settings())
+        val sameWorkspace = bound.withAssistantUpdate(
+            assistantView.copy(reasoningLevel = ReasoningLevel.LOW),
+            settings()
+        )
         val otherWorkspace = bound.withAssistantUpdate(assistantView.copy(workspaceId = Uuid.random()), settings())
 
         assertEquals("/workspace/project", sameWorkspace.workspaceCwd)
@@ -219,5 +227,28 @@ class ConversationConfigTest {
         // 会话自己绑定过的保留，没绑定过的继承助手
         assertEquals(setOf(conversationInjection), bound.modeInjectionIds)
         assertEquals(setOf(lorebook), bound.lorebookIds)
+    }
+
+    @Test
+    fun `ssh authorization stays on the bound conversation`() {
+        val bound = conversation().bindConfig(settings())
+        val changed = assistant.copy(sshConnectionIds = emptySet())
+
+        // 会话已固定授权集, 助手侧撤销不影响这个会话; 工具执行时再校验连接是否仍存在
+        assertEquals(setOf(sshConnection), settings(changed).getAssistantOf(bound).sshConnectionIds)
+        // 会话侧改动也只留在会话上, 不写回助手
+        val conversation = bound.withAssistantUpdate(
+            settings().getAssistantOf(bound).copy(sshConnectionIds = setOf(Uuid.random())),
+            settings(),
+        )
+        assertEquals(1, conversation.config?.sshConnectionIds?.size)
+        assertEquals(setOf(sshConnection), assistant.sshConnectionIds)
+    }
+
+    @Test
+    fun `conversation config without ssh field defaults to empty`() {
+        val decoded = JsonInstant.decodeFromString<ConversationConfig>("""{"chatModelId":null}""")
+        assertEquals(emptySet<Uuid>(), decoded.sshConnectionIds)
+        assertEquals(emptySet<Uuid>(), Assistant().sshConnectionIds)
     }
 }

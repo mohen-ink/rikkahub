@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.rikkahub.R
 import me.rerere.hugeicons.stroke.Book03
+import me.rerere.hugeicons.stroke.ComputerTerminal01
 import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Puzzle
@@ -80,6 +81,12 @@ fun ExtensionsPage() {
                         leadingContent = { CardGroupIcon(HugeIcons.Folder01, containerColor = containerColor, contentColor = contentColor) },
                         headlineContent = { Text(stringResource(R.string.extensions_page_workspace)) },
                         supportingContent = { Text(stringResource(R.string.extensions_page_workspace_desc)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.SshConnections) },
+                        leadingContent = { CardGroupIcon(HugeIcons.ComputerTerminal01, containerColor = containerColor, contentColor = contentColor) },
+                        headlineContent = { Text("SSH 服务器") },
+                        supportingContent = { Text("统一管理服务器，聊天时让 AI 在上面执行命令") },
                     )
                 }
             }

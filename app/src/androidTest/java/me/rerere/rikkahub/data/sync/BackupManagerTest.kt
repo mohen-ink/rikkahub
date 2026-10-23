@@ -42,8 +42,11 @@ class BackupManagerTest {
             override fun getFilesDir() = File(directory, "files").apply { mkdirs() }
             override fun getCacheDir() = File(directory, "cache").apply { mkdirs() }
             override fun getNoBackupFilesDir() = File(directory, "no-backup").apply { mkdirs() }
-            override fun getDatabasePath(name: String): File = if (File(name).isAbsolute) File(name)
-                else File(directory, "databases/$name").also { it.parentFile!!.mkdirs() }
+            override fun getDatabasePath(name: String): File = if (File(name).isAbsolute) {
+                File(name)
+            } else {
+                File(directory, "databases/$name").also { it.parentFile!!.mkdirs() }
+            }
         }
         liveDatabase = AppDatabaseFactory.create(context)
         liveDatabase.openHelper.writableDatabase.execSQL("CREATE TABLE backup_probe (text TEXT)")
@@ -98,6 +101,27 @@ class BackupManagerTest {
         assertEquals("live", probe(liveDatabase))
     }
 
+    @Test fun privateNoBackupFilesAreNotExportedOrReplacedByRestore() = runBlocking {
+        val privateFile = File(context.noBackupFilesDir, "ssh/backup-exclusion-probe")
+        privateFile.parentFile!!.mkdirs()
+        privateFile.writeText("local-only-ssh-secret-sentinel")
+        val archive = manager.createBackup(includeDatabase = true, includeFiles = true)
+        ZipFile(archive).use { zip ->
+            val entries = zip.entries().asSequence().toList()
+            assertTrue(entries.none { "ssh/" in it.name || "no-backup" in it.name })
+            entries.filterNot { it.isDirectory }.forEach { entry ->
+                val content = zip.getInputStream(entry).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+                assertFalse(content.contains("local-only-ssh-secret-sentinel"))
+            }
+        }
+        manager.stageRestore(archive, includeDatabase = true, includeFiles = true)
+        assertTrue(File(context.noBackupFilesDir, "backup-restore/pending/settings.json").delete())
+        liveDatabase.close()
+        assertTrue(BackupManager.applyPendingRestore(context, JsonInstant))
+        liveDatabase = AppDatabaseFactory.create(context)
+        assertEquals("local-only-ssh-secret-sentinel", privateFile.readText())
+    }
+
     @Test fun launchCountStaysInSettingsJsonThroughBackupAndStaging() = runBlocking {
         val archive = manager.createBackup(includeDatabase = false, includeFiles = false)
         val archived = ZipFile(archive).use { zip ->
@@ -117,7 +141,11 @@ class BackupManagerTest {
         val archive = File(directory, "no-launch-count.zip")
         ZipOutputStream(archive.outputStream()).use { zip ->
             zip.putNextEntry(ZipEntry("settings.json"))
-            zip.write(JsonObject(JsonInstant.parseToJsonElement(settingsJson).jsonObject - "launchCount").toString().toByteArray())
+            zip.write(
+                JsonObject(
+                    JsonInstant.parseToJsonElement(settingsJson).jsonObject - "launchCount"
+                ).toString().toByteArray()
+            )
             zip.closeEntry()
         }
         manager.stageRestore(archive, includeDatabase = false, includeFiles = false)
@@ -171,7 +199,10 @@ class BackupManagerTest {
     }
 
     private fun probe(database: AppDatabase): String = database.openHelper.readableDatabase
-        .query("SELECT text FROM backup_probe").use { check(it.moveToFirst()); it.getString(0) }
+        .query("SELECT text FROM backup_probe").use {
+            check(it.moveToFirst())
+            it.getString(0)
+        }
 
     private fun addFile(zip: ZipOutputStream, name: String, file: File) {
         zip.putNextEntry(ZipEntry(name))

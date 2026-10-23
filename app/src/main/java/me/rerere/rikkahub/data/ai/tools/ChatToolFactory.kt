@@ -14,6 +14,7 @@ import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
+import me.rerere.rikkahub.data.repository.SshConnectionRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.repository.memoryId
 import me.rerere.rikkahub.data.skills.SkillManager
@@ -25,8 +26,9 @@ private const val TAG = "ChatToolFactory"
 private const val MAX_TOOL_OUTPUT_CHARS = 32 * 1024
 private const val TOOL_OUTPUT_PREVIEW_CHARS = 4 * 1024
 
-// 搜索结果的体积由用户设置的结果数决定，且结果列表 UI 与引用跳转都依赖完整的 JSON 结构，不参与截断
-private val TOOLS_WITHOUT_OUTPUT_TRUNCATION = setOf("search_web")
+// 搜索结果的体积由用户设置的结果数决定，且结果列表 UI 与引用跳转都依赖完整的 JSON 结构，不参与截断;
+// SSH 输出由工具自身截断并带标记, 远程主机读不到本地 /tool_outputs 文件, 不能用全局截断的提示语
+private val TOOLS_WITHOUT_OUTPUT_TRUNCATION = setOf("search_web", SSH_LIST_CONNECTIONS_TOOL, SSH_EXEC_TOOL)
 
 internal fun shouldUseExternalWebSearch(assistant: Assistant, model: Model): Boolean {
     return assistant.enableWebSearch && BuiltInTools.Search !in model.tools
@@ -44,12 +46,16 @@ class ChatToolFactory(
     private val mcpManager: McpManager,
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
+    private val sshConnectionRepository: SshConnectionRepository,
 ) {
     suspend fun createTools(
         settings: Settings,
         assistant: Assistant,
         model: Model,
         workspaceCwd: String? = null,
+        // 授权集合的实时解析器: 执行时再读一次, 审批等待期间撤销授权不会放行;
+        // 缺省跟随 [assistant], 调用方传会话视角的实时读取以覆盖审批恢复时授权已变的场景
+        sshAuthorizedIds: (suspend () -> Set<Uuid>)? = null,
     ): List<Tool> {
         val workspaceTools = createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), workspaceCwd)
         val tools = buildList {
@@ -64,6 +70,12 @@ class ChatToolFactory(
                 addAll(createConversationTools(conversationRepository, assistant.id))
             }
             addAll(workspaceTools)
+            addAll(
+                createSshTools(
+                    authorizedIds = sshAuthorizedIds ?: { assistant.sshConnectionIds },
+                    sshAccess = sshConnectionRepository.asAccess(),
+                )
+            )
             if (assistant.enabledSkills.isNotEmpty()) {
                 addAll(
                     createSkillTools(
