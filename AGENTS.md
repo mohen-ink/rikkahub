@@ -31,6 +31,9 @@ Material 3 look (cards with dividers, plain forms).
 ```
 
 App 有一个 `distribution` 维度的 product flavor：`github`（默认）和 `play`，共用同一个 applicationId。
+个人 fork 的发布 applicationId 为 `me.mohen.rikkahub`（调试版追加 `.debug`），用于与上游原版共存。
+Kotlin namespace 和源码包名保留 `me.rerere.rikkahub`，不要为修改安装包标识而批量重命名源码；
+Provider authorities 和快捷方式目标包名必须随 applicationId 变化。
 渠道差异用 `BuildConfig.IS_PLAY_STORE` 判断（如 Play 版不检查更新、不显示更新提醒）。
 
 ## 个人 Tag 发布流程
