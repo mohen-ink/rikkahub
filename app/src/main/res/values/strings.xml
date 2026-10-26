@@ -1143,8 +1143,6 @@
   <string name="use_web_search">Web Search</string>
   <string name="user_default_name">User</string>
   <string name="video">Video</string>
-  <string name="web_search_disabled">Web search disabled</string>
-  <string name="web_search_enabled">Web search enabled</string>
   <string name="setting_theme_page_delete_theme_title">Delete Theme</string>
   <string name="setting_theme_page_delete_theme_message">Are you sure you want to delete this theme?</string>
   <string name="skills_page_import_from_file">Import from File</string>
@@ -1518,7 +1516,6 @@
   <string name="setting_page_media">Media</string>
   <string name="setting_page_media_desc">Image and video generation providers, asset upload</string>
   <string name="setting_media_page_providers">Providers</string>
-  <string name="setting_media_page_edit_provider">Edit provider</string>
   <string name="setting_media_page_add_provider">Add provider</string>
   <string name="setting_media_page_empty">No media generation providers yet. Tap + at the top to add one.</string>
   <string name="setting_media_page_s3_desc">Some APIs only accept assets at public URLs (such as reference images and reference videos for video generation). Set up an S3-compatible object storage service here, and local files are uploaded to its bucket first and then passed to the API as temporary URLs; uploaded files are cleaned up automatically after 7 days. This configuration is independent of the S3 used for backups.</string>
@@ -1784,4 +1781,7 @@
   <string name="floating_chat_status_awaiting_approval">Waiting for tool call confirmation</string>
   <string name="floating_chat_status_done">Reply finished</string>
   <string name="floating_chat_status_idle">Idle</string>
+  <string name="setting_model_page_memory_model">Memory Consolidation Model</string>
+  <string name="setting_model_page_memory_model_desc">Model used to organize conversations into long-term memory in the background; uses the fast model when not set</string>
+  <string name="setting_model_page_memory_model_follow_fast">Same as fast model</string>
 </resources>
