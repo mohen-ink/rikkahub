@@ -58,6 +58,7 @@ import me.rerere.rikkahub.ui.components.ui.logoMorphShape
 import me.rerere.rikkahub.ui.components.ui.rememberAppLogoLayers
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
+import me.rerere.rikkahub.utils.MohenRelease
 import me.rerere.rikkahub.utils.SoundEffectPlayer
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.plus
@@ -204,21 +205,21 @@ fun SettingAboutPage() {
                     val contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                     CardGroup {
                         item(
-                            onClick = { context.openUrl("https://rikka-ai.com/") },
+                            onClick = { context.openUrl(MohenRelease.REPOSITORY_URL) },
                             leadingContent = { CardGroupIcon(HugeIcons.Earth, containerColor = containerColor, contentColor = contentColor) },
-                            supportingContent = { Text("https://rikka-ai.com") },
+                            supportingContent = { Text(MohenRelease.REPOSITORY_URL) },
                             headlineContent = { Text(stringResource(R.string.about_page_website)) },
                         )
                         item(
-                            onClick = { context.openUrl("https://github.com/rikkahub/rikkahub") },
+                            onClick = { context.openUrl(MohenRelease.REPOSITORY_URL) },
                             leadingContent = { CardGroupIcon(HugeIcons.Github, containerColor = containerColor, contentColor = contentColor) },
-                            supportingContent = { Text("https://github.com/rikkahub/rikkahub") },
+                            supportingContent = { Text(MohenRelease.REPOSITORY_URL) },
                             headlineContent = { Text(stringResource(R.string.about_page_github)) },
                         )
                         item(
-                            onClick = { context.openUrl("https://github.com/rikkahub/rikkahub/blob/master/LICENSE") },
+                            onClick = { context.openUrl(MohenRelease.LICENSE_URL) },
                             leadingContent = { CardGroupIcon(HugeIcons.File02, containerColor = containerColor, contentColor = contentColor) },
-                            supportingContent = { Text("https://github.com/rikkahub/rikkahub/blob/master/LICENSE") },
+                            supportingContent = { Text(MohenRelease.LICENSE_URL) },
                             headlineContent = { Text(stringResource(R.string.about_page_license)) },
                         )
                     }

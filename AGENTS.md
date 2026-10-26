@@ -22,7 +22,7 @@ Material 3 look (cards with dividers, plain forms).
 
 ```bash
 ./gradlew assembleGithubDebug    # 构建 GitHub 渠道的 Debug APK
-./gradlew assembleGithubRelease  # 构建 GitHub Release / 每日构建用的 APK
+./gradlew assembleGithubRelease  # 构建 GitHub 渠道的 Release APK；个人 Tag 发布由 Actions 构建
 ./gradlew bundlePlayRelease      # 构建上架 Google Play 的 AAB
 ./gradlew test                   # 运行所有模块的 JVM 单元测试
 ./gradlew lint                   # 运行 Android Lint
@@ -32,6 +32,22 @@ Material 3 look (cards with dividers, plain forms).
 
 App 有一个 `distribution` 维度的 product flavor：`github`（默认）和 `play`，共用同一个 applicationId。
 渠道差异用 `BuildConfig.IS_PLAY_STORE` 判断（如 Play 版不检查更新、不显示更新提醒）。
+
+## 个人 Tag 发布流程
+
+1. 在 `personal` 分支准备发布，目标仓库为 `mohen-ink/rikkahub`。上游更新仅合并最新正式 Tag，
+   不追踪上游 master/nightly；不要将上游 Tag 或 nightly 当作个人发布目标。
+2. 基于上次个人发布 Tag 至当前提交，整理不超过 10 条中英双语更新日志，先交用户确认。
+   首次个人发布没有历史个人 Tag 时，以上游基准 Tag 以来的个人改动整理日志。
+3. Tag 使用 `vX.Y.Z-mohen.N`，应用版本去掉开头 `v`。基础版本必须与 `app/build.gradle.kts`
+   中的 `upstreamVersionName` 一致，N 为 1–999；版本码为 `upstreamVersionCode * 1000 + N`。
+4. 只有获得明确发布授权并确认更新日志后，才能提交、推送 `personal`，再创建并推送带已确认日志
+   注释的 annotated Tag。Tag 必须指向已推送到 `personal` 的发布提交；禁止移动或覆盖已发布 Tag。
+5. 发布前确认 Actions Secrets `KEY_BASE64`、`SIGNING_CONFIG` 已配置，沿用现有发布签名，
+   不读取或回显密钥。默认不在本地打包或运行全量测试；仅做必要的轻量检查，扩大验证范围先询问用户。
+6. `.github/workflows/mohen-release.yml` 在推送个人 Tag 后自动构建并发布 arm64 APK 和带版本号的
+   mapping 文件。推送后检查 `Mohen Release` 执行结果及 Release 资产；失败时不得宣称发布成功。
+   本仓库关闭定时构建，不恢复旧的 Daily Build。
 
 ## Module Structure
 

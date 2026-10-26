@@ -21,48 +21,51 @@ import me.rerere.rikkahub.BuildConfig
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-private const val API_URL = "https://updates.rikka-ai.com/"
-
 class UpdateChecker(
     private val client: OkHttpClient,
     appScope: AppScope,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    val updateState: StateFlow<UiState<UpdateInfo>> = checkUpdate().stateIn(
+    val updateState: StateFlow<UiState<UpdateInfo?>> = checkUpdate().stateIn(
         scope = appScope,
         started = SharingStarted.Lazily,
         initialValue = UiState.Loading,
     )
 
-    private fun checkUpdate(): Flow<UiState<UpdateInfo>> = flow {
+    private fun checkUpdate(): Flow<UiState<UpdateInfo?>> = flow {
         emit(UiState.Loading)
-        emit(
-            UiState.Success(
-                data = try {
-                    val response = client.newCall(
-                        Request.Builder()
-                            .url(API_URL)
-                            .get()
-                            .addHeader(
-                                "User-Agent",
-                                "RikkaHub ${BuildConfig.VERSION_NAME} #${BuildConfig.VERSION_CODE}"
-                            )
-                            .build()
-                    ).await()
-                    if (response.isSuccessful) {
-                        json.decodeFromString<UpdateInfo>(response.body.string())
-                    } else {
-                        throw Exception("Failed to fetch update info")
-                    }
-                } catch (e: Exception) {
-                    throw Exception("Failed to fetch update info", e)
-                }
-            )
-        )
+        emit(UiState.Success(fetchUpdate()))
     }.catch {
         emit(UiState.Error(it))
     }.flowOn(Dispatchers.IO)
+
+    private suspend fun fetchUpdate(): UpdateInfo? {
+        val releases = mutableListOf<GitHubRelease>()
+        var page = 1
+        while (true) {
+            val hasNext = client.newCall(
+                Request.Builder()
+                    .url("${MohenRelease.API_URL}?per_page=100&page=$page")
+                    .get()
+                    .addHeader("Accept", "application/vnd.github+json")
+                    .addHeader(
+                        "User-Agent",
+                        "RikkaHub-Mohen ${BuildConfig.VERSION_NAME} #${BuildConfig.VERSION_CODE}"
+                    )
+                    .build()
+            ).await().use { response ->
+                check(response.isSuccessful) {
+                    "Failed to fetch Mohen releases: HTTP ${response.code}"
+                }
+                releases += json.decodeFromString<List<GitHubRelease>>(response.body.string())
+                response.header("Link")?.split(',')?.any { it.contains("rel=\"next\"") } == true
+            }
+            if (!hasNext) break
+            page++
+        }
+        return releases.latestMohenUpdate()
+    }
 
     fun downloadUpdate(context: Context, download: UpdateDownload) {
         runCatching {

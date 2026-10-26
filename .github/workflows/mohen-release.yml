@@ -1,0 +1,117 @@
+name: Mohen Release
+
+on:
+  push:
+    tags:
+      - 'v*-mohen.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mohen-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'mohen-ink/rikkahub'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Validate release tag
+        id: version
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-mohen\.([1-9][0-9]{0,2})$ ]]; then
+            echo "Expected a tag such as v3.1.1-mohen.1 (revision 1-999)." >&2
+            exit 1
+          fi
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/personal
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'jetbrains'
+          java-version: '21'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web-ui/pnpm-lock.yaml
+
+      - name: Install web-ui dependencies
+        working-directory: web-ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      - name: Prepare signing files
+        env:
+          KEY_BASE64: ${{ secrets.KEY_BASE64 }}
+          SIGNING_CONFIG: ${{ secrets.SIGNING_CONFIG }}
+        run: |
+          test -n "$KEY_BASE64" && test -n "$SIGNING_CONFIG"
+          printf '%s' "$KEY_BASE64" | base64 --decode > app/app.key
+          printf '%s\n' "$SIGNING_CONFIG" > local.properties
+
+      - name: Build GitHub release
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleGithubRelease "-PmohenVersion=$RELEASE_VERSION"
+
+      - name: Prepare release assets and notes
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/github/release/*arm64-v8a*.apk)
+          test "${#apks[@]}" -eq 1
+          install -Dm644 "${apks[0]}" "release-artifacts/RikkaHub-$RELEASE_VERSION-arm64-v8a.apk"
+          install -Dm644 app/build/outputs/mapping/githubRelease/mapping.txt "release-artifacts/mapping-$RELEASE_VERSION.txt"
+          if [[ "$(git cat-file -t "refs/tags/$RELEASE_TAG")" == tag ]]; then
+            git for-each-ref --format='%(contents)' "refs/tags/$RELEASE_TAG" > release-notes.md
+          fi
+          if [[ ! -s release-notes.md ]]; then
+            printf '更新内容:\n\n- 发布 Mohen 个人版本 %s\n\nUpdates:\n\n- Publish Mohen build %s\n' "$RELEASE_VERSION" "$RELEASE_VERSION" > release-notes.md
+          fi
+
+      - name: Publish personal release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.version.outputs.version }}
+          body_path: release-notes.md
+          prerelease: false
+          make_latest: 'true'
+          fail_on_unmatched_files: true
+          files: |
+            release-artifacts/*.apk
+            release-artifacts/mapping-*.txt

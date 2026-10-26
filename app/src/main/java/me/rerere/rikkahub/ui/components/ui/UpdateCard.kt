@@ -41,6 +41,7 @@ import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.useThrottle
 import me.rerere.rikkahub.ui.pages.chat.ChatVM
+import me.rerere.rikkahub.utils.MohenRelease
 import me.rerere.rikkahub.utils.UpdateDownload
 import me.rerere.rikkahub.utils.Version
 import me.rerere.rikkahub.utils.onError
@@ -78,9 +79,10 @@ fun UpdateCard(vm: ChatVM) {
         }
     }
     state.onSuccess { info ->
+        if (info == null) return@onSuccess
         var showDetail by remember { mutableStateOf(false) }
         var dismissed by remember { mutableStateOf(false) }
-        val current = remember { Version(BuildConfig.VERSION_NAME) }
+        val current = remember { MohenRelease.currentVersion(BuildConfig.VERSION_NAME) }
         val latest = remember(info) { Version(info.version) }
         if (latest > current && !dismissed) {
             Card(

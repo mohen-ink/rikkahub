@@ -54,7 +54,7 @@ class OpenRouterMediaGenerationProvider(
 internal fun MediaGenerationProviderSetting.OpenRouter.request(path: String): Request.Builder =
     bearerRequest("${baseUrl.trimEnd('/')}$path", apiKey)
         .addHeader("X-Title", "RikkaHub")
-        .addHeader("HTTP-Referer", "https://rikka-ai.com")
+        .addHeader("HTTP-Referer", "https://github.com/mohen-ink/rikkahub")
 
 // 像素尺寸（1280x720）走 size，档位（2K、1080p）走 resolution
 internal fun JsonObjectBuilder.putResolution(resolution: String?) {

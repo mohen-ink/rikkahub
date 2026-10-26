@@ -24,8 +24,24 @@ android {
         applicationId = "me.rerere.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 194
-        versionName = "3.1.1"
+        val upstreamVersionCode = 194
+        val upstreamVersionName = "3.1.1"
+        val mohenVersion = providers.gradleProperty("mohenVersion")
+            .orElse("$upstreamVersionName-mohen.1")
+            .get()
+        val mohenMatch = requireNotNull(
+            Regex("""(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-mohen\.([1-9][0-9]{0,2})""")
+                .matchEntire(mohenVersion)
+        ) { "Expected mohenVersion such as $upstreamVersionName-mohen.1 (revision 1-999)" }
+        val releaseBase = mohenMatch.groupValues.subList(1, 4).joinToString(".")
+        require(releaseBase == upstreamVersionName) {
+            "Release base $releaseBase must match source version $upstreamVersionName"
+        }
+        val revision = mohenMatch.groupValues[4].toInt()
+        val mohenVersionCode = Math.addExact(Math.multiplyExact(upstreamVersionCode, 1000), revision)
+        require(mohenVersionCode <= 2100000000) { "Personal versionCode exceeds the Android limit" }
+        versionCode = mohenVersionCode
+        versionName = mohenVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
